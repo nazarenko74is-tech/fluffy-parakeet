@@ -1,3 +1,178 @@
 package com.segamaster.desktop;
-import android.animation.*;import android.app.*;import android.content.*;import android.graphics.PixelFormat;import android.os.*;import android.provider.Settings;import android.view.*;import android.view.animation.AccelerateDecelerateInterpolator;import android.widget.*;
-public class SegaOverlayService extends Service{WindowManager wm;ImageView v;WindowManager.LayoutParams p;Handler h=new Handler(Looper.getMainLooper());ObjectAnimator bob,walk;boolean moving;int dp(int n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}public void onCreate(){super.onCreate();NotificationChannel c=new NotificationChannel("sega","SEGA MASTER",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager.class).createNotificationChannel(c);Notification n=new Notification.Builder(this,"sega").setContentTitle("SEGA MASTER работает").setContentText("Персонаж поверх экрана").setSmallIcon(android.R.drawable.ic_menu_compass).setOngoing(true).build();if(Build.VERSION.SDK_INT>=34)startForeground(74,n,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);else startForeground(74,n);if(!Settings.canDrawOverlays(this)){stopSelf();return;}wm=(WindowManager)getSystemService(WINDOW_SERVICE);v=new ImageView(this);v.setImageResource(R.drawable.sega_master);v.setScaleType(ImageView.ScaleType.FIT_CENTER);int sw=getResources().getDisplayMetrics().widthPixels,sh=getResources().getDisplayMetrics().heightPixels;int w=Math.min(dp(190),Math.max(dp(140),sw/3)),hh=Math.min(dp(300),Math.max(dp(220),sh/2));p=new WindowManager.LayoutParams(w,hh,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP|Gravity.START;p.x=dp(12);p.y=sh/3;v.setOnTouchListener(new View.OnTouchListener(){float x,y;int sx,sy;long tm;public boolean onTouch(View q,MotionEvent e){if(e.getAction()==0){x=e.getRawX();y=e.getRawY();sx=p.x;sy=p.y;tm=System.currentTimeMillis();return true;}if(e.getAction()==2){p.x=sx+(int)(e.getRawX()-x);p.y=sy+(int)(e.getRawY()-y);clamp();wm.updateViewLayout(v,p);return true;}if(e.getAction()==1){if(Math.abs(e.getRawX()-x)<dp(12)&&Math.abs(e.getRawY()-y)<dp(12)&&System.currentTimeMillis()-tm<450)react();return true;}return true;}});wm.addView(v,p);bob=ObjectAnimator.ofFloat(v,View.TRANSLATION_Y,0,-dp(5),0);bob.setDuration(1600);bob.setRepeatCount(ValueAnimator.INFINITE);bob.setInterpolator(new AccelerateDecelerateInterpolator());bob.start();h.postDelayed(this::walk,9000);}void react(){v.animate().scaleX(1.12f).scaleY(1.12f).setDuration(120).withEndAction(()->v.animate().scaleX(1).scaleY(1).setDuration(180).start()).start();Toast.makeText(this,"Чё смотришь? 😎",Toast.LENGTH_SHORT).show();}void walk(){if(v==null||moving)return;moving=true;int sw=getResources().getDisplayMetrics().widthPixels;int target=p.x>sw/2?dp(8):sw-p.width-dp(8);walk=ObjectAnimator.ofInt(this,"dummy",p.x,target);walk.setDuration(4000);walk.addUpdateListener(a->{p.x=(Integer)a.getAnimatedValue();clamp();try{wm.updateViewLayout(v,p);}catch(Exception ignored){}});walk.addListener(new AnimatorListenerAdapter(){public void onAnimationEnd(Animator a){moving=false;h.postDelayed(SegaOverlayService.this::walk,9000);}});walk.start();}public void setDummy(int x){}void clamp(){int sw=getResources().getDisplayMetrics().widthPixels,sh=getResources().getDisplayMetrics().heightPixels;p.x=Math.max(0,Math.min(p.x,sw-p.width));p.y=Math.max(0,Math.min(p.y,sh-p.height));}public void onDestroy(){h.removeCallbacksAndMessages(null);if(bob!=null)bob.cancel();if(walk!=null)walk.cancel();if(v!=null)try{wm.removeView(v);}catch(Exception ignored){}super.onDestroy();}public IBinder onBind(Intent i){return null;}}
+
+import android.animation.*;
+import android.app.*;
+import android.content.*;
+import android.graphics.PixelFormat;
+import android.os.*;
+import android.provider.Settings;
+import android.view.*;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.widget.*;
+
+public class SegaOverlayService extends Service {
+    WindowManager wm;
+    ImageView v;
+    WindowManager.LayoutParams p;
+    Handler h = new Handler(Looper.getMainLooper());
+    ObjectAnimator bob, walk;
+    boolean moving;
+
+    int dp(int n) {
+        return (int)(n * getResources().getDisplayMetrics().density + .5f);
+    }
+
+    public void onCreate() {
+        super.onCreate();
+
+        NotificationChannel c = new NotificationChannel(
+                "sega", "SEGA MASTER", NotificationManager.IMPORTANCE_LOW);
+        getSystemService(NotificationManager.class).createNotificationChannel(c);
+
+        Notification n = new Notification.Builder(this, "sega")
+                .setContentTitle("SEGA MASTER работает")
+                .setContentText("Персонаж поверх экрана")
+                .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .setOngoing(true)
+                .build();
+
+        if (Build.VERSION.SDK_INT >= 34)
+            startForeground(74, n,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        else
+            startForeground(74, n);
+
+        if (!Settings.canDrawOverlays(this)) {
+            stopSelf();
+            return;
+        }
+
+        wm = (WindowManager)getSystemService(WINDOW_SERVICE);
+
+        v = new ImageView(this);
+        v.setImageBitmap(SegaMasterAsset.get(this));
+        v.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        int sh = getResources().getDisplayMetrics().heightPixels;
+
+        // Tall portrait character: preserve the original visual proportions.
+        int w = Math.min(dp(150), Math.max(dp(105), sw / 4));
+        int hh = Math.min(dp(420), Math.max(dp(300), sh / 2));
+
+        p = new WindowManager.LayoutParams(
+                w, hh,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+
+        p.gravity = Gravity.TOP | Gravity.START;
+        p.x = dp(12);
+        p.y = Math.max(dp(80), sh / 3);
+
+        v.setOnTouchListener(new View.OnTouchListener() {
+            float x, y;
+            int sx, sy;
+            long tm;
+
+            public boolean onTouch(View q, MotionEvent e) {
+                if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                    x = e.getRawX();
+                    y = e.getRawY();
+                    sx = p.x;
+                    sy = p.y;
+                    tm = System.currentTimeMillis();
+                    return true;
+                }
+
+                if (e.getAction() == MotionEvent.ACTION_MOVE) {
+                    p.x = sx + (int)(e.getRawX() - x);
+                    p.y = sy + (int)(e.getRawY() - y);
+                    clamp();
+                    try { wm.updateViewLayout(v, p); } catch (Exception ignored) {}
+                    return true;
+                }
+
+                if (e.getAction() == MotionEvent.ACTION_UP) {
+                    if (Math.abs(e.getRawX() - x) < dp(12)
+                            && Math.abs(e.getRawY() - y) < dp(12)
+                            && System.currentTimeMillis() - tm < 450) {
+                        react();
+                    }
+                    return true;
+                }
+
+                return true;
+            }
+        });
+
+        wm.addView(v, p);
+
+        bob = ObjectAnimator.ofFloat(v, View.TRANSLATION_Y, 0, -dp(5), 0);
+        bob.setDuration(1600);
+        bob.setRepeatCount(ValueAnimator.INFINITE);
+        bob.setInterpolator(new AccelerateDecelerateInterpolator());
+        bob.start();
+
+        h.postDelayed(this::walk, 9000);
+    }
+
+    void react() {
+        v.animate()
+                .scaleX(1.12f).scaleY(1.12f)
+                .setDuration(120)
+                .withEndAction(() ->
+                        v.animate().scaleX(1).scaleY(1).setDuration(180).start())
+                .start();
+
+        Toast.makeText(this, "Чё смотришь? 😎", Toast.LENGTH_SHORT).show();
+    }
+
+    void walk() {
+        if (v == null || moving) return;
+
+        moving = true;
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        int target = p.x > sw / 2 ? dp(8) : sw - p.width - dp(8);
+
+        walk = ObjectAnimator.ofInt(this, "dummy", p.x, target);
+        walk.setDuration(4000);
+        walk.addUpdateListener(a -> {
+            p.x = (Integer)a.getAnimatedValue();
+            clamp();
+            try { wm.updateViewLayout(v, p); } catch (Exception ignored) {}
+        });
+
+        walk.addListener(new AnimatorListenerAdapter() {
+            public void onAnimationEnd(Animator a) {
+                moving = false;
+                h.postDelayed(SegaOverlayService.this::walk, 9000);
+            }
+            public void onAnimationCancel(Animator a) {
+                moving = false;
+            }
+        });
+
+        walk.start();
+    }
+
+    public void setDummy(int x) {}
+
+    void clamp() {
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        int sh = getResources().getDisplayMetrics().heightPixels;
+        p.x = Math.max(0, Math.min(p.x, Math.max(0, sw - p.width)));
+        p.y = Math.max(0, Math.min(p.y, Math.max(0, sh - p.height)));
+    }
+
+    public void onDestroy() {
+        h.removeCallbacksAndMessages(null);
+        if (bob != null) bob.cancel();
+        if (walk != null) walk.cancel();
+        if (v != null)
+            try { wm.removeView(v); } catch (Exception ignored) {}
+        super.onDestroy();
+    }
+
+    public IBinder onBind(Intent i) { return null; }
+}
