@@ -27,7 +27,15 @@ jobs:
       - name: Restore SEGA MASTER visual asset
         run: |
           mkdir -p app/src/main/res/drawable
-          base64 -d app/src/main/assets/sega_master.webp.b64 > app/src/main/res/drawable/sega_master.webp
+          python3 - <<'PY'
+          import base64, pathlib, re
+          s = pathlib.Path('app/src/main/assets/sega_master.webp.b64').read_text()
+          s = re.sub(r'[^A-Za-z0-9+/=]', '', s)
+          s += '=' * ((4 - len(s) % 4) % 4)
+          data = base64.b64decode(s, validate=False)
+          pathlib.Path('app/src/main/res/drawable/sega_master.webp').write_bytes(data)
+          print('decoded bytes:', len(data))
+          PY
           rm -f app/src/main/assets/sega_master.webp.b64
           file app/src/main/res/drawable/sega_master.webp
           ls -lh app/src/main/res/drawable/sega_master.webp
